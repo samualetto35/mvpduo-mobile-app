@@ -6,7 +6,7 @@ export default function AnasayfaHeader() {
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
         <View style={styles.leftSection}>
-          <Text style={styles.text}>Çaylak 6</Text>
+          <Text style={styles.text}>Çaylak</Text>
         </View>
         
         <View style={styles.centerSection}>
@@ -15,7 +15,7 @@ export default function AnasayfaHeader() {
         </View>
         
         <View style={styles.rightSection}>
-          <Text style={styles.text}>Hız 1,23 Ders / Gün</Text>
+          <Text style={styles.text}>1,23 Ders/Gün</Text>
         </View>
       </View>
       <View style={styles.dividerContainer}>

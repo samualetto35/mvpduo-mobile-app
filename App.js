@@ -41,11 +41,11 @@ export default function App() {
             bottom: 0,
             left: 0,
             right: 0,
-            height: 80,
+            height: 90,
+            paddingTop: 0,
             backgroundColor: 'transparent',
-            borderTopWidth: 0,
-            elevation: 0,
-            shadowOpacity: 0,
+            borderTopWidth: 1,
+            borderTopColor: '#E0E0E0',
           },
           tabBarBackground: () => (
             <BlurView intensity={80} style={StyleSheet.absoluteFill} />
