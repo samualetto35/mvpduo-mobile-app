@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Animated } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../lib/supabase';
@@ -9,12 +9,39 @@ export default function HeroLevels({ navigation }) {
   const [bolumData, setBolumData] = useState([]);
   const [loading, setLoading] = useState(true);
   const [userPreferences, setUserPreferences] = useState(null);
+  const [spinValue] = useState(new Animated.Value(0));
 
   // Refresh profile when component mounts to ensure latest data
   useEffect(() => {
     refreshUserProfile();
     loadUserPreferences();
   }, []);
+
+  // Start spinning animation
+  useEffect(() => {
+    if (loading) {
+      const pulseAnimation = Animated.loop(
+        Animated.sequence([
+          Animated.timing(spinValue, {
+            toValue: 1.5,
+            duration: 600,
+            useNativeDriver: true,
+          }),
+          Animated.timing(spinValue, {
+            toValue: 1,
+            duration: 600,
+            useNativeDriver: true,
+          }),
+        ])
+      );
+      pulseAnimation.start();
+    }
+  }, [loading]);
+
+  const spin = spinValue.interpolate({
+    inputRange: [0, 1],
+    outputRange: ['0deg', '360deg'],
+  });
 
   const loadUserPreferences = async () => {
     try {
@@ -144,9 +171,6 @@ export default function HeroLevels({ navigation }) {
           
           // Create display text with all exam types for this bölüm
           let displayText = `Lvl${level} B${bolum}`;
-          if (examTypesForThisBolum.length > 0) {
-            displayText += ` (${examTypesForThisBolum.join(', ')})`;
-          }
           
           allPossibleBolums.push({
             level,
@@ -189,20 +213,20 @@ export default function HeroLevels({ navigation }) {
   const getCirclePosition = (index, totalBolums) => {
     const positions = [
       { left: 0, top: 0 },      // 1st: center
-      { left: -50, top: 80 },   // 2nd: left, 2nd row
-      { left: -85, top: 160 },  // 3rd: more left, 3rd row
-      { left: -50, top: 240 },  // 4th: left, 4th row
-      { left: 0, top: 320 },    // 5th: center, 5th row
-      { left: 50, top: 400 },   // 6th: right, 6th row
-      { left: 85, top: 480 },   // 7th: more right, 7th row
-      { left: 50, top: 560 },   // 8th: right, 8th row
-      { left: 0, top: 640 },    // 9th: center, 9th row
-      { left: -50, top: 720 },  // 10th: left, 10th row
-      { left: -85, top: 800 },  // 11th: more left, 11th row
-      { left: 0, top: 880 },    // 12th: center, 12th row
+      { left: -50, top: 25 },   // 2nd: left, 2nd row (reduced from 40)
+      { left: -85, top: 50 },   // 3rd: more left, 3rd row (reduced from 80)
+      { left: -50, top: 75 },   // 4th: left, 4th row (reduced from 120)
+      { left: 0, top: 100 },    // 5th: center, 5th row (reduced from 160)
+      { left: 50, top: 125 },   // 6th: right, 6th row (reduced from 200)
+      { left: 85, top: 150 },   // 7th: more right, 7th row (reduced from 240)
+      { left: 50, top: 175 },   // 8th: right, 8th row (reduced from 280)
+      { left: 0, top: 200 },    // 9th: center, 9th row (reduced from 320)
+      { left: -50, top: 225 },  // 10th: left, 10th row (reduced from 360)
+      { left: -85, top: 250 },  // 11th: more left, 11th row (reduced from 400)
+      { left: 0, top: 275 },    // 12th: center, 12th row (reduced from 440)
     ];
 
-    return positions[index] || { left: 0, top: index * 80 };
+    return positions[index] || { left: 0, top: index * 25 }; // Reduced from 40 to 25
   };
 
   // Get icon for each bölüm
@@ -230,18 +254,22 @@ export default function HeroLevels({ navigation }) {
           disabled={!isActive}
         >
           <View style={styles.circleWrapper}>
-            <View style={styles.shadowCircle} />
-            <View style={isUnlocked ? styles.activeCircle : styles.inactiveCircle}>
+            <View style={[styles.shadowCircle, isActive && styles.activeShadowCircle]} />
+            <Animated.View style={[
+              isUnlocked ? styles.activeCircle : styles.inactiveCircle,
+              isActive && styles.currentCircle,
+              { transform: [{ rotate: spin }] } // Apply rotation to the circle
+            ]}>
               <Ionicons 
                 name={iconName} 
-                size={18} 
+                size={isActive ? 24 : 20} // Larger icon for current circle
                 color={isUnlocked ? "#fff" : "#B0B0B0"} 
               />
-            </View>
+            </Animated.View>
           </View>
         </TouchableOpacity>
         {/* Title under the circle */}
-        <Text style={styles.circleTitle}>{displayText}</Text>
+        <Text style={[styles.circleTitle, isActive && styles.currentCircleTitle]}>{displayText}</Text>
       </View>
     );
   };
@@ -249,7 +277,12 @@ export default function HeroLevels({ navigation }) {
   if (loading) {
     return (
       <View style={styles.loadingContainer}>
-        <Text style={styles.loadingText}>Loading bölüms...</Text>
+        <View style={styles.dotsContainer}>
+          <Animated.View style={[styles.dot, { transform: [{ scale: spinValue }] }]} />
+          <Animated.View style={[styles.dot, { transform: [{ scale: spinValue }] }]} />
+          <Animated.View style={[styles.dot, { transform: [{ scale: spinValue }] }]} />
+        </View>
+        <Text style={styles.loadingText}>Yükleniyor</Text>
       </View>
     );
   }
@@ -304,7 +337,7 @@ const styles = StyleSheet.create({
   },
   circleContainer: {
     alignItems: 'center',
-    marginBottom: 25,
+    marginBottom: 12, // Reduced from 25 to 15
     position: 'relative',
   },
   squareContainer: {
@@ -317,9 +350,9 @@ const styles = StyleSheet.create({
   },
   shadowCircle: {
     position: 'absolute',
-    width: 70,
-    height: 65,
-    borderRadius: 35,
+    width: 80, // Increased from 70
+    height: 75, // Increased from 65
+    borderRadius: 40, // Increased from 35
     backgroundColor: '#CCCCCC',
     top: 6,
     left: 0,
@@ -361,9 +394,9 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   activeCircle: {
-    width: 70,
-    height: 65,
-    borderRadius: 35,
+    width: 80, // Increased from 70
+    height: 75, // Increased from 65
+    borderRadius: 40, // Increased from 35
     backgroundColor: '#32CD32',
     justifyContent: 'center',
     alignItems: 'center',
@@ -396,9 +429,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   inactiveCircle: {
-    width: 70,
-    height: 65,
-    borderRadius: 35,
+    width: 80, // Increased from 70
+    height: 75, // Increased from 65
+    borderRadius: 40, // Increased from 35
     backgroundColor: '#F5F5F5',
     justifyContent: 'center',
     alignItems: 'center',
@@ -455,13 +488,16 @@ const styles = StyleSheet.create({
   },
   loadingContainer: {
     flex: 1,
-    justifyContent: 'center',
+    justifyContent: 'flex-end',
     alignItems: 'center',
     backgroundColor: '#FFFFFF',
+    paddingBottom: 5, // Reduced from 10 to 5 to move it even lower
   },
   loadingText: {
     fontSize: 18,
     color: '#666',
+    marginTop: 15,
+    fontWeight: '600',
   },
   emptyContainer: {
     flex: 1,
@@ -489,5 +525,50 @@ const styles = StyleSheet.create({
     color: '#666',
     marginTop: 5,
     textAlign: 'center',
+  },
+  currentCircle: {
+    width: 90, // Increased from 80
+    height: 85, // Increased from 75
+    borderRadius: 45, // Increased from 40
+    backgroundColor: '#32CD32',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#E0E0E0',
+  },
+  currentCircleTitle: {
+    fontSize: 14, // Slightly larger font for current circle
+    fontWeight: 'bold',
+    color: '#000080', // Changed from white to navy blue for better visibility
+  },
+  activeShadowCircle: {
+    width: 90, // Match current circle size
+    height: 85, // Match current circle size
+    borderRadius: 45, // Match current circle size
+    backgroundColor: '#CCCCCC', // Keep original shadow color
+    borderColor: '#E0E0E0',
+  },
+  loadingCircle: {
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    borderWidth: 3,
+    borderColor: '#000080',
+    borderTopColor: 'transparent',
+    borderRightColor: 'transparent',
+    marginBottom: 15,
+  },
+  dotsContainer: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 15,
+  },
+  dot: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: '#000080',
+    marginHorizontal: 5,
   },
 }); 

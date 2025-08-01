@@ -1,11 +1,44 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, StyleSheet, ScrollView, Text } from 'react-native';
 import AnasayfaHeader from './AnasayfaHeader';
 import HeroLevels from './HeroLevels';
 import { useAuth } from '../contexts/AuthContext';
+import { supabase } from '../lib/supabase';
 
 export default function Anasayfa({ navigation }) {
-  const { userProfile } = useAuth();
+  const { userProfile, user } = useAuth();
+  const [examPreferences, setExamPreferences] = useState('');
+
+  useEffect(() => {
+    loadExamPreferences();
+  }, []);
+
+  const loadExamPreferences = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('user_exam_preferences')
+        .select('tyt_enabled, ayt_say_enabled, ayt_ea_enabled, ayt_soz_enabled')
+        .eq('user_id', user.id)
+        .single();
+
+      if (error && error.code !== 'PGRST116') {
+        console.error('Error loading exam preferences:', error);
+        return;
+      }
+
+      if (data) {
+        const preferences = [];
+        if (data.tyt_enabled) preferences.push('TYT');
+        if (data.ayt_say_enabled) preferences.push('AYT SAY');
+        if (data.ayt_ea_enabled) preferences.push('AYT EA');
+        if (data.ayt_soz_enabled) preferences.push('AYT SOZ');
+        
+        setExamPreferences(preferences.join(' + '));
+      }
+    } catch (error) {
+      console.error('Error loading exam preferences:', error);
+    }
+  };
 
   return (
     <View style={styles.container}>
@@ -18,7 +51,7 @@ export default function Anasayfa({ navigation }) {
             Level {userProfile?.current_level || 1}, Bölüm {userProfile?.current_bolum || 1}
           </Text>
           <Text style={styles.bunnyText}>
-            Hot Cross Bunny
+            {examPreferences || 'Loading...'}
           </Text>
         </View>
       </View>
