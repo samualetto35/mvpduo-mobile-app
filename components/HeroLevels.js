@@ -1,8 +1,46 @@
-import React from 'react';
-import { View, Text, StyleSheet, ScrollView } from 'react-native';
+import React, { useEffect } from 'react';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useAuth } from '../contexts/AuthContext';
 
-export default function HeroLevels() {
+export default function HeroLevels({ navigation }) {
+  const { userProfile, refreshUserProfile } = useAuth();
+
+  // Refresh profile when component mounts to ensure latest data
+  useEffect(() => {
+    refreshUserProfile();
+  }, []);
+
+  const handleStartLesson = () => {
+    if (navigation) {
+      navigation.navigate('QuestionScreen');
+    }
+  };
+
+  // Calculate current progress
+  const currentKidem = userProfile?.current_kidem || 1;
+  const currentLevel = userProfile?.current_level || 1;
+  const currentBolum = userProfile?.current_bolum || 1;
+
+  // Determine which circles should be unlocked
+  const isFirstCircleUnlocked = currentBolum >= 1;
+  const isSecondCircleUnlocked = currentBolum >= 2;
+  const isThirdCircleUnlocked = currentBolum >= 3;
+  const isFourthCircleUnlocked = currentBolum >= 4;
+  const isFifthCircleUnlocked = currentBolum >= 5;
+  const isSquareUnlocked = currentBolum >= 6;
+
+  // Determine which circle is the current active one (for clicking)
+  const getCurrentActiveCircle = () => {
+    if (currentBolum <= 5) {
+      return currentBolum; // 1-5 for circles
+    } else {
+      return 6; // 6 for square
+    }
+  };
+
+  const currentActiveCircle = getCurrentActiveCircle();
+
   return (
     <ScrollView 
       style={styles.scrollContainer} 
@@ -10,78 +48,122 @@ export default function HeroLevels() {
       contentContainerStyle={styles.scrollContent}
     >
       <View style={styles.container}>
-        {/* Active Circle - Top (Center) */}
+        {/* First Circle - Top (Center) */}
         <View style={[styles.circleContainer, { left: 0 }]}>
-          <View style={styles.speechBubble}>
-            <Text style={styles.speechBubbleText}>BAŞLA</Text>
-          </View>
-          <View style={styles.circleWrapper}>
-            <View style={styles.shadowCircle} />
-            <View style={styles.activeCircle}>
-              <View style={styles.progressRing}>
-                <View style={styles.progressFill} />
-              </View>
-              <View style={styles.starContainer}>
-                <Ionicons name="star" size={24} color="#fff" />
+          <TouchableOpacity 
+            onPress={currentActiveCircle === 1 ? handleStartLesson : null}
+            disabled={currentActiveCircle !== 1}
+          >
+            <View style={styles.circleWrapper}>
+              <View style={styles.shadowCircle} />
+              <View style={isFirstCircleUnlocked ? styles.activeCircle : styles.inactiveCircle}>
+                <View style={styles.starContainer}>
+                  <Ionicons name="star" size={20} color="#fff" />
+                </View>
               </View>
             </View>
-          </View>
+          </TouchableOpacity>
         </View>
 
         {/* Second Circle - 5px left from center */}
         <View style={[styles.circleContainer, { left: -50 }]}>
-          <View style={styles.circleWrapper}>
-            <View style={styles.shadowCircle} />
-            <View style={styles.inactiveCircle}>
-              <Ionicons name="lock-closed" size={20} color="#666" />
+          <TouchableOpacity 
+            onPress={currentActiveCircle === 2 ? handleStartLesson : null}
+            disabled={currentActiveCircle !== 2}
+          >
+            <View style={styles.circleWrapper}>
+              <View style={styles.shadowCircle} />
+              <View style={isSecondCircleUnlocked ? styles.activeCircle : styles.inactiveCircle}>
+                <Ionicons 
+                  name="lock-closed" 
+                  size={18} 
+                  color={isSecondCircleUnlocked ? "#fff" : "#B0B0B0"} 
+                />
+              </View>
             </View>
-          </View>
+          </TouchableOpacity>
         </View>
 
         {/* Third Circle - 10px left from center */}
         <View style={[styles.circleContainer, { left: -85 }]}>
-          <View style={styles.circleWrapper}>
-            <View style={styles.shadowCircle} />
-            <View style={styles.inactiveCircle}>
-              <Ionicons name="lock-closed" size={20} color="#666" />
+          <TouchableOpacity 
+            onPress={currentActiveCircle === 3 ? handleStartLesson : null}
+            disabled={currentActiveCircle !== 3}
+          >
+            <View style={styles.circleWrapper}>
+              <View style={styles.shadowCircle} />
+              <View style={isThirdCircleUnlocked ? styles.activeCircle : styles.inactiveCircle}>
+                <Ionicons 
+                  name="lock-closed" 
+                  size={18} 
+                  color={isThirdCircleUnlocked ? "#fff" : "#B0B0B0"} 
+                />
+              </View>
             </View>
-          </View>
+          </TouchableOpacity>
         </View>
 
         {/* Fourth Circle - 5px left from center */}
         <View style={[styles.circleContainer, { left: -50 }]}>
-          <View style={styles.circleWrapper}>
-            <View style={styles.shadowCircle} />
-            <View style={styles.inactiveCircle}>
-              <Ionicons name="book" size={20} color="#666" />
+          <TouchableOpacity 
+            onPress={currentActiveCircle === 4 ? handleStartLesson : null}
+            disabled={currentActiveCircle !== 4}
+          >
+            <View style={styles.circleWrapper}>
+              <View style={styles.shadowCircle} />
+              <View style={isFourthCircleUnlocked ? styles.activeCircle : styles.inactiveCircle}>
+                <Ionicons 
+                  name="book" 
+                  size={18} 
+                  color={isFourthCircleUnlocked ? "#fff" : "#B0B0B0"} 
+                />
+              </View>
             </View>
-          </View>
+          </TouchableOpacity>
         </View>
 
         {/* Fifth Circle - Center */}
         <View style={[styles.circleContainer, { left: 0 }]}>
-          <View style={styles.circleWrapper}>
-            <View style={styles.shadowCircle} />
-            <View style={styles.inactiveCircle}>
-              <Ionicons name="trophy" size={20} color="#666" />
+          <TouchableOpacity 
+            onPress={currentActiveCircle === 5 ? handleStartLesson : null}
+            disabled={currentActiveCircle !== 5}
+          >
+            <View style={styles.circleWrapper}>
+              <View style={styles.shadowCircle} />
+              <View style={isFifthCircleUnlocked ? styles.activeCircle : styles.inactiveCircle}>
+                <Ionicons 
+                  name="trophy" 
+                  size={18} 
+                  color={isFifthCircleUnlocked ? "#fff" : "#B0B0B0"} 
+                />
+              </View>
             </View>
-          </View>
+          </TouchableOpacity>
         </View>
 
         {/* Sixth Circle - Square with rounded corners */}
-        <View style={[styles.circleContainer, { left: 0 }]}>
-          <View style={styles.circleWrapper}>
-            <View style={styles.shadowSquare} />
-            <View style={styles.squareBox}>
-              <Ionicons name="trophy" size={30} color="#666" />
+        <View style={[styles.squareContainer, { left: 0 }]}>
+          <TouchableOpacity 
+            onPress={currentActiveCircle === 6 ? handleStartLesson : null}
+            disabled={currentActiveCircle !== 6}
+          >
+            <View style={styles.circleWrapper}>
+              <View style={styles.shadowSquare} />
+              <View style={isSquareUnlocked ? styles.activeSquare : styles.squareBox}>
+                <Ionicons 
+                  name="trophy" 
+                  size={26} 
+                  color={isSquareUnlocked ? "#fff" : "#B0B0B0"} 
+                />
+              </View>
             </View>
-          </View>
+          </TouchableOpacity>
         </View>
 
         {/* Linear line with text */}
         <View style={styles.lineContainer}>
           <View style={styles.line} />
-          <Text style={styles.levelText}>Level 24 Bölüm 7</Text>
+          <Text style={styles.levelText}>Level {currentLevel} Bölüm {currentBolum}</Text>
           <View style={styles.line} />
         </View>
 
@@ -91,7 +173,7 @@ export default function HeroLevels() {
           <View style={styles.circleWrapper}>
             <View style={styles.shadowCircle} />
             <View style={styles.inactiveCircle}>
-              <Ionicons name="star" size={20} color="#666" />
+              <Ionicons name="star" size={18} color="#B0B0B0" />
             </View>
           </View>
         </View>
@@ -101,7 +183,7 @@ export default function HeroLevels() {
           <View style={styles.circleWrapper}>
             <View style={styles.shadowCircle} />
             <View style={styles.inactiveCircle}>
-              <Ionicons name="lock-closed" size={20} color="#666" />
+              <Ionicons name="lock-closed" size={18} color="#B0B0B0" />
             </View>
           </View>
         </View>
@@ -111,7 +193,7 @@ export default function HeroLevels() {
           <View style={styles.circleWrapper}>
             <View style={styles.shadowCircle} />
             <View style={styles.inactiveCircle}>
-              <Ionicons name="book" size={20} color="#666" />
+              <Ionicons name="book" size={18} color="#B0B0B0" />
             </View>
           </View>
         </View>
@@ -121,7 +203,7 @@ export default function HeroLevels() {
           <View style={styles.circleWrapper}>
             <View style={styles.shadowCircle} />
             <View style={styles.inactiveCircle}>
-              <Ionicons name="trophy" size={20} color="#666" />
+              <Ionicons name="trophy" size={18} color="#B0B0B0" />
             </View>
           </View>
         </View>
@@ -131,17 +213,17 @@ export default function HeroLevels() {
           <View style={styles.circleWrapper}>
             <View style={styles.shadowCircle} />
             <View style={styles.inactiveCircle}>
-              <Ionicons name="star" size={20} color="#666" />
+              <Ionicons name="star" size={18} color="#B0B0B0" />
             </View>
           </View>
         </View>
 
         {/* Sixth Circle - Square with rounded corners */}
-        <View style={[styles.circleContainer, { left: 0 }]}>
+        <View style={[styles.squareContainer, { left: 0 }]}>
           <View style={styles.circleWrapper}>
             <View style={styles.shadowSquare} />
             <View style={styles.squareBox}>
-              <Ionicons name="trophy" size={30} color="#666" />
+              <Ionicons name="trophy" size={26} color="#B0B0B0" />
             </View>
           </View>
         </View>
@@ -153,10 +235,12 @@ export default function HeroLevels() {
 const styles = StyleSheet.create({
   scrollContainer: {
     flex: 1,
+    backgroundColor: '#FFFFFF', // Added white background
   },
   scrollContent: {
     flexGrow: 1,
     width: '100%',
+    backgroundColor: '#FFFFFF', // Added white background
   },
   container: {
     alignItems: 'center',
@@ -164,10 +248,16 @@ const styles = StyleSheet.create({
     position: 'relative',
     width: '100%',
     paddingHorizontal: 50, // Add horizontal padding to ensure circles are visible
+    backgroundColor: '#FFFFFF', // Added white background
   },
   circleContainer: {
     alignItems: 'center',
-    marginBottom: 30,
+    marginBottom: 25, // Changed from 20 to 25
+    position: 'relative',
+  },
+  squareContainer: {
+    alignItems: 'center',
+    marginBottom: 30, // Keep squares at 30
     position: 'relative',
   },
   circleWrapper: {
@@ -175,23 +265,27 @@ const styles = StyleSheet.create({
   },
   shadowCircle: {
     position: 'absolute',
-    width: 70, // Increased from 60
-    height: 62, // Increased from 52 to maintain elliptical ratio
-    borderRadius: 35, // Increased from 30 to match new size
-    backgroundColor: '#E0E0E0',
+    width: 70,
+    height: 65, // Changed from 62 to make it more circular
+    borderRadius: 35,
+    backgroundColor: '#CCCCCC', // Made darker from #E0E0E0
     top: 6,
     left: 0,
-    zIndex: -1,
+    zIndex: 0, // Changed from -1 to 0 to make visible
+    borderWidth: 1, // Same border as main circle
+    borderColor: '#E0E0E0', // Same border color
   },
   shadowSquare: {
     position: 'absolute',
     width: 90, // Increased from 80
     height: 80, // Increased from 70 to maintain elliptical ratio
     borderRadius: 22, // Increased from 20 to match new size
-    backgroundColor: '#E0E0E0',
+    backgroundColor: '#CCCCCC', // Made darker from #E0E0E0
     top: 6,
     left: 0,
-    zIndex: -1,
+    zIndex: 0, // Changed from -1 to 0 to make visible
+    borderWidth: 1, // Same border as main square
+    borderColor: '#E0E0E0', // Same border color
   },
   speechBubble: {
     backgroundColor: '#fff',
@@ -210,25 +304,19 @@ const styles = StyleSheet.create({
   },
   speechBubbleText: {
     color: '#32CD32',
-    fontSize: 12,
+    fontSize: 14, // Increased from 12
     fontWeight: 'bold',
     textAlign: 'center',
   },
   activeCircle: {
-    width: 70, // Increased from 60
-    height: 62, // Increased from 52 to maintain elliptical ratio
-    borderRadius: 35, // Increased from 30 to match new size
+    width: 70,
+    height: 65, // Changed from 62 to make it more circular
+    borderRadius: 35,
     backgroundColor: '#32CD32',
     justifyContent: 'center',
     alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 4,
-    },
-    shadowOpacity: 0.2,
-    shadowRadius: 8,
-    elevation: 6,
+    borderWidth: 1, // Added grey stroke
+    borderColor: '#E0E0E0', // Grey stroke color
   },
   progressRing: {
     position: 'absolute',
@@ -256,20 +344,14 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   inactiveCircle: {
-    width: 70, // Increased from 60
-    height: 62, // Increased from 52 to maintain elliptical ratio
-    borderRadius: 35, // Increased from 30 to match new size
+    width: 70,
+    height: 65, // Changed from 62 to make it more circular
+    borderRadius: 35,
     backgroundColor: '#F5F5F5',
     justifyContent: 'center',
     alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
+    borderWidth: 1, // Added grey stroke
+    borderColor: '#E0E0E0', // Grey stroke color
   },
   squareBox: {
     width: 90, // Increased from 80
@@ -278,14 +360,18 @@ const styles = StyleSheet.create({
     backgroundColor: '#F5F5F5',
     justifyContent: 'center',
     alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
+    borderWidth: 1, // Added grey stroke
+    borderColor: '#E0E0E0', // Grey stroke color
+  },
+  activeSquare: {
+    width: 90, // Increased from 80
+    height: 80, // Increased from 70 to maintain elliptical ratio
+    borderRadius: 22, // Increased from 20 to match new size
+    backgroundColor: '#32CD32', // Green like active circle
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1, // Added grey stroke
+    borderColor: '#E0E0E0', // Grey stroke color
   },
   lineContainer: {
     flexDirection: 'row',
