@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { NavigationContainer } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createStackNavigator } from '@react-navigation/stack';
@@ -16,6 +16,7 @@ import AuthScreen from './components/AuthScreen';
 import LoadingScreen from './components/LoadingScreen';
 import DiagnosticScreen from './components/DiagnosticScreen';
 import QuestionScreen from './components/QuestionScreen';
+import OnboardingFlow from './components/OnboardingFlow';
 
 // Import AuthProvider
 import { AuthProvider, useAuth } from './contexts/AuthContext';
@@ -33,7 +34,58 @@ function AnasayfaStack() {
 }
 
 function MainApp() {
-  const { isAuthenticated, loading } = useAuth();
+  const { isAuthenticated, loading, user } = useAuth();
+  const [showOnboarding, setShowOnboarding] = useState(false);
+  const [onboardingComplete, setOnboardingComplete] = useState(false);
+
+  useEffect(() => {
+    if (isAuthenticated && user) {
+      checkOnboardingStatus();
+    }
+  }, [isAuthenticated, user]);
+
+  const checkOnboardingStatus = async () => {
+    try {
+      // Import supabase here to avoid circular imports
+      const { supabase } = await import('./lib/supabase');
+      
+      // Check if user has completed onboarding
+      const { data: verificationData } = await supabase
+        .from('email_verification')
+        .select('verified_at')
+        .eq('user_id', user.id)
+        .single();
+
+      const { data: preferencesData } = await supabase
+        .from('user_exam_preferences')
+        .select('tyt_enabled, ayt_say_enabled, ayt_ea_enabled, ayt_soz_enabled')
+        .eq('user_id', user.id)
+        .single();
+
+      const emailVerified = verificationData?.verified_at !== null;
+      const hasPreferences = preferencesData && (
+        preferencesData.tyt_enabled || 
+        preferencesData.ayt_say_enabled || 
+        preferencesData.ayt_ea_enabled || 
+        preferencesData.ayt_soz_enabled
+      );
+
+      if (!emailVerified || !hasPreferences) {
+        setShowOnboarding(true);
+      } else {
+        setOnboardingComplete(true);
+      }
+    } catch (error) {
+      console.error('Error checking onboarding status:', error);
+      // If there's an error, show onboarding to be safe
+      setShowOnboarding(true);
+    }
+  };
+
+  const handleOnboardingComplete = () => {
+    setShowOnboarding(false);
+    setOnboardingComplete(true);
+  };
 
   if (loading) {
     return <LoadingScreen />;
@@ -41,6 +93,10 @@ function MainApp() {
 
   if (!isAuthenticated) {
     return <AuthScreen />;
+  }
+
+  if (showOnboarding) {
+    return <OnboardingFlow onComplete={handleOnboardingComplete} />;
   }
 
   return (

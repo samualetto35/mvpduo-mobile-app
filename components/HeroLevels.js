@@ -1,19 +1,182 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../contexts/AuthContext';
+import { supabase } from '../lib/supabase';
 
 export default function HeroLevels({ navigation }) {
-  const { userProfile, refreshUserProfile } = useAuth();
+  const { userProfile, refreshUserProfile, user } = useAuth();
+  const [bolumData, setBolumData] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [userPreferences, setUserPreferences] = useState(null);
 
   // Refresh profile when component mounts to ensure latest data
   useEffect(() => {
     refreshUserProfile();
+    loadUserPreferences();
   }, []);
 
-  const handleStartLesson = () => {
+  const loadUserPreferences = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('user_exam_preferences')
+        .select('*')
+        .eq('user_id', user.id)
+        .single();
+
+      if (error && error.code !== 'PGRST116') {
+        throw error;
+      }
+
+      setUserPreferences(data || {
+        tyt_enabled: false,
+        ayt_say_enabled: false,
+        ayt_ea_enabled: false,
+        ayt_soz_enabled: false,
+      });
+
+      // Load bölüm data after preferences are loaded
+      loadBolumData(data);
+    } catch (error) {
+      console.error('Error loading user preferences:', error);
+      // Load with default preferences
+      loadBolumData({
+        tyt_enabled: false,
+        ayt_say_enabled: false,
+        ayt_ea_enabled: false,
+        ayt_soz_enabled: false,
+      });
+    }
+  };
+
+  const loadBolumData = async (preferences) => {
+    try {
+      setLoading(true);
+      const currentKidem = userProfile?.current_kidem || 1;
+      
+      // Build exam type filters based on user preferences
+      const examTypes = [];
+      const divisions = [];
+      
+      if (preferences?.tyt_enabled) {
+        examTypes.push('TYT');
+      }
+      if (preferences?.ayt_say_enabled) {
+        examTypes.push('AYT');
+        divisions.push('SAY');
+      }
+      if (preferences?.ayt_ea_enabled) {
+        examTypes.push('AYT');
+        divisions.push('EA');
+      }
+      if (preferences?.ayt_soz_enabled) {
+        examTypes.push('AYT');
+        divisions.push('SOZ');
+      }
+
+      if (examTypes.length === 0) {
+        // If no preferences set, show all TYT bölüms
+        examTypes.push('TYT');
+      }
+
+      // Get bölüm data from bolum_questions table
+      const { data, error } = await supabase
+        .from('bolum_questions')
+        .select('name, kidem, level, bolum, exam_type, division, q1_id, q2_id, q3_id, q4_id, q5_id')
+        .eq('kidem', currentKidem)
+        .in('exam_type', examTypes)
+        .order('level', { ascending: true })
+        .order('bolum', { ascending: true });
+
+      if (error) {
+        console.error('Error loading bölüm data:', error);
+        return;
+      }
+
+      // Filter based on user preferences
+      const filteredBolums = data.filter(bolum => {
+        // For TYT, include if user has TYT enabled
+        if (bolum.exam_type === 'TYT') {
+          return preferences?.tyt_enabled;
+        }
+        
+        // For AYT, check division
+        if (bolum.exam_type === 'AYT') {
+          if (bolum.division === 'SAY') {
+            return preferences?.ayt_say_enabled;
+          }
+          if (bolum.division === 'EA') {
+            return preferences?.ayt_ea_enabled;
+          }
+          if (bolum.division === 'SOZ') {
+            return preferences?.ayt_soz_enabled;
+          }
+        }
+        
+        return false;
+      });
+
+      // Create all possible bölüms in correct order (Lvl1 B1-B12, Lvl2 B1-B12, etc.)
+      const allPossibleBolums = [];
+      
+      // Generate all levels (1-100) and bölüms (1-12) for selected exam types
+      for (let level = 1; level <= 100; level++) {
+        for (let bolum = 1; bolum <= 12; bolum++) {
+          const examTypesForThisBolum = [];
+          
+          // Add TYT if enabled
+          if (preferences?.tyt_enabled) {
+            examTypesForThisBolum.push('TYT');
+          }
+          
+          // Add AYT divisions if enabled
+          if (preferences?.ayt_say_enabled) {
+            examTypesForThisBolum.push('AYT SAY');
+          }
+          
+          if (preferences?.ayt_ea_enabled) {
+            examTypesForThisBolum.push('AYT EA');
+          }
+          
+          if (preferences?.ayt_soz_enabled) {
+            examTypesForThisBolum.push('AYT SOZ');
+          }
+          
+          // Create display text with all exam types for this bölüm
+          let displayText = `Lvl${level} B${bolum}`;
+          if (examTypesForThisBolum.length > 0) {
+            displayText += ` (${examTypesForThisBolum.join(', ')})`;
+          }
+          
+          allPossibleBolums.push({
+            level,
+            bolum,
+            examTypes: examTypesForThisBolum,
+            displayText
+          });
+        }
+      }
+
+      // Sort by level first, then by bölüm
+      allPossibleBolums.sort((a, b) => {
+        if (a.level !== b.level) {
+          return a.level - b.level;
+        }
+        return a.bolum - b.bolum;
+      });
+
+      setBolumData(allPossibleBolums);
+      console.log(`Loaded ${allPossibleBolums.length} bölüms for user preferences`);
+    } catch (error) {
+      console.error('Error loading bölüm data:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleStartLesson = (level, bolumNumber) => {
     if (navigation) {
-      navigation.navigate('QuestionScreen');
+      navigation.navigate('QuestionScreen', { level, bolum: bolumNumber });
     }
   };
 
@@ -22,24 +185,86 @@ export default function HeroLevels({ navigation }) {
   const currentLevel = userProfile?.current_level || 1;
   const currentBolum = userProfile?.current_bolum || 1;
 
-  // Determine which circles should be unlocked
-  const isFirstCircleUnlocked = currentBolum >= 1;
-  const isSecondCircleUnlocked = currentBolum >= 2;
-  const isThirdCircleUnlocked = currentBolum >= 3;
-  const isFourthCircleUnlocked = currentBolum >= 4;
-  const isFifthCircleUnlocked = currentBolum >= 5;
-  const isSquareUnlocked = currentBolum >= 6;
+  // Get positioning for each circle based on index
+  const getCirclePosition = (index, totalBolums) => {
+    const positions = [
+      { left: 0, top: 0 },      // 1st: center
+      { left: -50, top: 80 },   // 2nd: left, 2nd row
+      { left: -85, top: 160 },  // 3rd: more left, 3rd row
+      { left: -50, top: 240 },  // 4th: left, 4th row
+      { left: 0, top: 320 },    // 5th: center, 5th row
+      { left: 50, top: 400 },   // 6th: right, 6th row
+      { left: 85, top: 480 },   // 7th: more right, 7th row
+      { left: 50, top: 560 },   // 8th: right, 8th row
+      { left: 0, top: 640 },    // 9th: center, 9th row
+      { left: -50, top: 720 },  // 10th: left, 10th row
+      { left: -85, top: 800 },  // 11th: more left, 11th row
+      { left: 0, top: 880 },    // 12th: center, 12th row
+    ];
 
-  // Determine which circle is the current active one (for clicking)
-  const getCurrentActiveCircle = () => {
-    if (currentBolum <= 5) {
-      return currentBolum; // 1-5 for circles
-    } else {
-      return 6; // 6 for square
-    }
+    return positions[index] || { left: 0, top: index * 80 };
   };
 
-  const currentActiveCircle = getCurrentActiveCircle();
+  // Get icon for each bölüm
+  const getBolumIcon = (bolumNumber) => {
+    const icons = [
+      'star', 'lock-closed', 'book', 'trophy', 'star',
+      'lock-closed', 'book', 'trophy', 'star', 'lock-closed',
+      'book', 'trophy'
+    ];
+    return icons[(bolumNumber - 1) % icons.length];
+  };
+
+  // Render a single circle
+  const renderCircle = (bolumData, index) => {
+    const { level, bolum, displayText } = bolumData;
+    const isUnlocked = (currentLevel > level) || (currentLevel === level && currentBolum >= bolum);
+    const isActive = currentLevel === level && currentBolum === bolum;
+    const position = getCirclePosition(index, bolumData.length);
+    const iconName = getBolumIcon(bolum);
+
+    return (
+      <View key={`bolum-${level}-${bolum}`} style={[styles.circleContainer, position]}>
+        <TouchableOpacity 
+          onPress={isActive ? () => handleStartLesson(level, bolum) : null}
+          disabled={!isActive}
+        >
+          <View style={styles.circleWrapper}>
+            <View style={styles.shadowCircle} />
+            <View style={isUnlocked ? styles.activeCircle : styles.inactiveCircle}>
+              <Ionicons 
+                name={iconName} 
+                size={18} 
+                color={isUnlocked ? "#fff" : "#B0B0B0"} 
+              />
+            </View>
+          </View>
+        </TouchableOpacity>
+        {/* Title under the circle */}
+        <Text style={styles.circleTitle}>{displayText}</Text>
+      </View>
+    );
+  };
+
+  if (loading) {
+    return (
+      <View style={styles.loadingContainer}>
+        <Text style={styles.loadingText}>Loading bölüms...</Text>
+      </View>
+    );
+  }
+
+  if (bolumData.length === 0) {
+    return (
+      <View style={styles.emptyContainer}>
+        <Ionicons name="book-outline" size={60} color="#ccc" />
+        <Text style={styles.emptyTitle}>No Bölüms Available</Text>
+        <Text style={styles.emptyText}>
+          No bölüms match your exam preferences or have questions yet.
+        </Text>
+      </View>
+    );
+  }
 
   return (
     <ScrollView 
@@ -48,185 +273,10 @@ export default function HeroLevels({ navigation }) {
       contentContainerStyle={styles.scrollContent}
     >
       <View style={styles.container}>
-        {/* First Circle - Top (Center) */}
-        <View style={[styles.circleContainer, { left: 0 }]}>
-          <TouchableOpacity 
-            onPress={currentActiveCircle === 1 ? handleStartLesson : null}
-            disabled={currentActiveCircle !== 1}
-          >
-            <View style={styles.circleWrapper}>
-              <View style={styles.shadowCircle} />
-              <View style={isFirstCircleUnlocked ? styles.activeCircle : styles.inactiveCircle}>
-                <View style={styles.starContainer}>
-                  <Ionicons name="star" size={20} color="#fff" />
-                </View>
-              </View>
-            </View>
-          </TouchableOpacity>
-        </View>
-
-        {/* Second Circle - 5px left from center */}
-        <View style={[styles.circleContainer, { left: -50 }]}>
-          <TouchableOpacity 
-            onPress={currentActiveCircle === 2 ? handleStartLesson : null}
-            disabled={currentActiveCircle !== 2}
-          >
-            <View style={styles.circleWrapper}>
-              <View style={styles.shadowCircle} />
-              <View style={isSecondCircleUnlocked ? styles.activeCircle : styles.inactiveCircle}>
-                <Ionicons 
-                  name="lock-closed" 
-                  size={18} 
-                  color={isSecondCircleUnlocked ? "#fff" : "#B0B0B0"} 
-                />
-              </View>
-            </View>
-          </TouchableOpacity>
-        </View>
-
-        {/* Third Circle - 10px left from center */}
-        <View style={[styles.circleContainer, { left: -85 }]}>
-          <TouchableOpacity 
-            onPress={currentActiveCircle === 3 ? handleStartLesson : null}
-            disabled={currentActiveCircle !== 3}
-          >
-            <View style={styles.circleWrapper}>
-              <View style={styles.shadowCircle} />
-              <View style={isThirdCircleUnlocked ? styles.activeCircle : styles.inactiveCircle}>
-                <Ionicons 
-                  name="lock-closed" 
-                  size={18} 
-                  color={isThirdCircleUnlocked ? "#fff" : "#B0B0B0"} 
-                />
-              </View>
-            </View>
-          </TouchableOpacity>
-        </View>
-
-        {/* Fourth Circle - 5px left from center */}
-        <View style={[styles.circleContainer, { left: -50 }]}>
-          <TouchableOpacity 
-            onPress={currentActiveCircle === 4 ? handleStartLesson : null}
-            disabled={currentActiveCircle !== 4}
-          >
-            <View style={styles.circleWrapper}>
-              <View style={styles.shadowCircle} />
-              <View style={isFourthCircleUnlocked ? styles.activeCircle : styles.inactiveCircle}>
-                <Ionicons 
-                  name="book" 
-                  size={18} 
-                  color={isFourthCircleUnlocked ? "#fff" : "#B0B0B0"} 
-                />
-              </View>
-            </View>
-          </TouchableOpacity>
-        </View>
-
-        {/* Fifth Circle - Center */}
-        <View style={[styles.circleContainer, { left: 0 }]}>
-          <TouchableOpacity 
-            onPress={currentActiveCircle === 5 ? handleStartLesson : null}
-            disabled={currentActiveCircle !== 5}
-          >
-            <View style={styles.circleWrapper}>
-              <View style={styles.shadowCircle} />
-              <View style={isFifthCircleUnlocked ? styles.activeCircle : styles.inactiveCircle}>
-                <Ionicons 
-                  name="trophy" 
-                  size={18} 
-                  color={isFifthCircleUnlocked ? "#fff" : "#B0B0B0"} 
-                />
-              </View>
-            </View>
-          </TouchableOpacity>
-        </View>
-
-        {/* Sixth Circle - Square with rounded corners */}
-        <View style={[styles.squareContainer, { left: 0 }]}>
-          <TouchableOpacity 
-            onPress={currentActiveCircle === 6 ? handleStartLesson : null}
-            disabled={currentActiveCircle !== 6}
-          >
-            <View style={styles.circleWrapper}>
-              <View style={styles.shadowSquare} />
-              <View style={isSquareUnlocked ? styles.activeSquare : styles.squareBox}>
-                <Ionicons 
-                  name="trophy" 
-                  size={26} 
-                  color={isSquareUnlocked ? "#fff" : "#B0B0B0"} 
-                />
-              </View>
-            </View>
-          </TouchableOpacity>
-        </View>
-
-        {/* Linear line with text */}
-        <View style={styles.lineContainer}>
-          <View style={styles.line} />
-          <Text style={styles.levelText}>Level {currentLevel} Bölüm {currentBolum}</Text>
-          <View style={styles.line} />
-        </View>
-
-        {/* Second set of circles - going to the right */}
-        {/* First Circle - Center */}
-        <View style={[styles.circleContainer, { left: 0 }]}>
-          <View style={styles.circleWrapper}>
-            <View style={styles.shadowCircle} />
-            <View style={styles.inactiveCircle}>
-              <Ionicons name="star" size={18} color="#B0B0B0" />
-            </View>
-          </View>
-        </View>
-
-        {/* Second Circle - 5px right from center */}
-        <View style={[styles.circleContainer, { left: 50 }]}>
-          <View style={styles.circleWrapper}>
-            <View style={styles.shadowCircle} />
-            <View style={styles.inactiveCircle}>
-              <Ionicons name="lock-closed" size={18} color="#B0B0B0" />
-            </View>
-          </View>
-        </View>
-
-        {/* Third Circle - 10px right from center */}
-        <View style={[styles.circleContainer, { left: 85 }]}>
-          <View style={styles.circleWrapper}>
-            <View style={styles.shadowCircle} />
-            <View style={styles.inactiveCircle}>
-              <Ionicons name="book" size={18} color="#B0B0B0" />
-            </View>
-          </View>
-        </View>
-
-        {/* Fourth Circle - 5px right from center */}
-        <View style={[styles.circleContainer, { left: 50 }]}>
-          <View style={styles.circleWrapper}>
-            <View style={styles.shadowCircle} />
-            <View style={styles.inactiveCircle}>
-              <Ionicons name="trophy" size={18} color="#B0B0B0" />
-            </View>
-          </View>
-        </View>
-
-        {/* Fifth Circle - Center */}
-        <View style={[styles.circleContainer, { left: 0 }]}>
-          <View style={styles.circleWrapper}>
-            <View style={styles.shadowCircle} />
-            <View style={styles.inactiveCircle}>
-              <Ionicons name="star" size={18} color="#B0B0B0" />
-            </View>
-          </View>
-        </View>
-
-        {/* Sixth Circle - Square with rounded corners */}
-        <View style={[styles.squareContainer, { left: 0 }]}>
-          <View style={styles.circleWrapper}>
-            <View style={styles.shadowSquare} />
-            <View style={styles.squareBox}>
-              <Ionicons name="trophy" size={26} color="#B0B0B0" />
-            </View>
-          </View>
-        </View>
+        {/* Render all bölüm circles dynamically */}
+        {bolumData.map((bolumData, index) => {
+          return renderCircle(bolumData, index);
+        })}
       </View>
     </ScrollView>
   );
@@ -235,29 +285,31 @@ export default function HeroLevels({ navigation }) {
 const styles = StyleSheet.create({
   scrollContainer: {
     flex: 1,
-    backgroundColor: '#FFFFFF', // Added white background
+    backgroundColor: '#FFFFFF',
   },
   scrollContent: {
     flexGrow: 1,
     width: '100%',
-    backgroundColor: '#FFFFFF', // Added white background
+    backgroundColor: '#FFFFFF',
+    paddingBottom: 100, // Add bottom padding to ensure all circles are visible
   },
   container: {
     alignItems: 'center',
     paddingVertical: 20,
     position: 'relative',
     width: '100%',
-    paddingHorizontal: 50, // Add horizontal padding to ensure circles are visible
-    backgroundColor: '#FFFFFF', // Added white background
+    paddingHorizontal: 50,
+    backgroundColor: '#FFFFFF',
+    minHeight: '100%', // Ensure container takes full height
   },
   circleContainer: {
     alignItems: 'center',
-    marginBottom: 25, // Changed from 20 to 25
+    marginBottom: 25,
     position: 'relative',
   },
   squareContainer: {
     alignItems: 'center',
-    marginBottom: 30, // Keep squares at 30
+    marginBottom: 30,
     position: 'relative',
   },
   circleWrapper: {
@@ -266,26 +318,26 @@ const styles = StyleSheet.create({
   shadowCircle: {
     position: 'absolute',
     width: 70,
-    height: 65, // Changed from 62 to make it more circular
+    height: 65,
     borderRadius: 35,
-    backgroundColor: '#CCCCCC', // Made darker from #E0E0E0
+    backgroundColor: '#CCCCCC',
     top: 6,
     left: 0,
-    zIndex: 0, // Changed from -1 to 0 to make visible
-    borderWidth: 1, // Same border as main circle
-    borderColor: '#E0E0E0', // Same border color
+    zIndex: 0,
+    borderWidth: 1,
+    borderColor: '#E0E0E0',
   },
   shadowSquare: {
     position: 'absolute',
-    width: 90, // Increased from 80
-    height: 80, // Increased from 70 to maintain elliptical ratio
-    borderRadius: 22, // Increased from 20 to match new size
-    backgroundColor: '#CCCCCC', // Made darker from #E0E0E0
+    width: 90,
+    height: 80,
+    borderRadius: 22,
+    backgroundColor: '#CCCCCC',
     top: 6,
     left: 0,
-    zIndex: 0, // Changed from -1 to 0 to make visible
-    borderWidth: 1, // Same border as main square
-    borderColor: '#E0E0E0', // Same border color
+    zIndex: 0,
+    borderWidth: 1,
+    borderColor: '#E0E0E0',
   },
   speechBubble: {
     backgroundColor: '#fff',
@@ -304,25 +356,25 @@ const styles = StyleSheet.create({
   },
   speechBubbleText: {
     color: '#32CD32',
-    fontSize: 14, // Increased from 12
+    fontSize: 14,
     fontWeight: 'bold',
     textAlign: 'center',
   },
   activeCircle: {
     width: 70,
-    height: 65, // Changed from 62 to make it more circular
+    height: 65,
     borderRadius: 35,
     backgroundColor: '#32CD32',
     justifyContent: 'center',
     alignItems: 'center',
-    borderWidth: 1, // Added grey stroke
-    borderColor: '#E0E0E0', // Grey stroke color
+    borderWidth: 1,
+    borderColor: '#E0E0E0',
   },
   progressRing: {
     position: 'absolute',
-    width: 80, // Increased from 70
-    height: 80, // Increased from 70
-    borderRadius: 40, // Increased from 35 to match new size
+    width: 80,
+    height: 80,
+    borderRadius: 40,
     borderWidth: 3,
     borderColor: '#E0E0E0',
     justifyContent: 'center',
@@ -330,9 +382,9 @@ const styles = StyleSheet.create({
   },
   progressFill: {
     position: 'absolute',
-    width: 80, // Increased from 70
-    height: 80, // Increased from 70
-    borderRadius: 40, // Increased from 35 to match new size
+    width: 80,
+    height: 80,
+    borderRadius: 40,
     borderWidth: 3,
     borderColor: '#FFD700',
     borderTopColor: 'transparent',
@@ -345,41 +397,41 @@ const styles = StyleSheet.create({
   },
   inactiveCircle: {
     width: 70,
-    height: 65, // Changed from 62 to make it more circular
+    height: 65,
     borderRadius: 35,
     backgroundColor: '#F5F5F5',
     justifyContent: 'center',
     alignItems: 'center',
-    borderWidth: 1, // Added grey stroke
-    borderColor: '#E0E0E0', // Grey stroke color
+    borderWidth: 1,
+    borderColor: '#E0E0E0',
   },
   squareBox: {
-    width: 90, // Increased from 80
-    height: 80, // Increased from 70 to maintain elliptical ratio
-    borderRadius: 22, // Increased from 20 to match new size
+    width: 90,
+    height: 80,
+    borderRadius: 22,
     backgroundColor: '#F5F5F5',
     justifyContent: 'center',
     alignItems: 'center',
-    borderWidth: 1, // Added grey stroke
-    borderColor: '#E0E0E0', // Grey stroke color
+    borderWidth: 1,
+    borderColor: '#E0E0E0',
   },
   activeSquare: {
-    width: 90, // Increased from 80
-    height: 80, // Increased from 70 to maintain elliptical ratio
-    borderRadius: 22, // Increased from 20 to match new size
-    backgroundColor: '#32CD32', // Green like active circle
+    width: 90,
+    height: 80,
+    borderRadius: 22,
+    backgroundColor: '#32CD32',
     justifyContent: 'center',
     alignItems: 'center',
-    borderWidth: 1, // Added grey stroke
-    borderColor: '#E0E0E0', // Grey stroke color
+    borderWidth: 1,
+    borderColor: '#E0E0E0',
   },
   lineContainer: {
     flexDirection: 'row',
     alignItems: 'center',
     marginTop: 20,
     paddingHorizontal: 20,
-    paddingTop: 30, // Add more top padding to the line container
-    marginBottom: 50, // Add more bottom padding after the line
+    paddingTop: 30,
+    marginBottom: 50,
   },
   line: {
     flex: 1,
@@ -392,6 +444,50 @@ const styles = StyleSheet.create({
     color: '#666',
     marginHorizontal: 15,
     textAlign: 'center',
-    lineHeight: 14, // Match the line height to align with lines
+    lineHeight: 14,
+  },
+  levelSeparator: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 20,
+    marginBottom: 20,
+    paddingHorizontal: 20,
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+  },
+  loadingText: {
+    fontSize: 18,
+    color: '#666',
+  },
+  emptyContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+    paddingHorizontal: 40,
+  },
+  emptyTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: '#666',
+    marginTop: 20,
+    marginBottom: 10,
+    textAlign: 'center',
+  },
+  emptyText: {
+    fontSize: 16,
+    color: '#999',
+    textAlign: 'center',
+    lineHeight: 22,
+  },
+  circleTitle: {
+    fontSize: 12,
+    color: '#666',
+    marginTop: 5,
+    textAlign: 'center',
   },
 }); 

@@ -12,7 +12,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../contexts/AuthContext';
 import { DatabaseService } from '../lib/supabase';
 
-export default function QuestionScreen({ navigation }) {
+export default function QuestionScreen({ navigation, route }) {
   const { userProfile, refreshUserProfile } = useAuth();
   const [questions, setQuestions] = useState([]);
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
@@ -23,25 +23,27 @@ export default function QuestionScreen({ navigation }) {
   const [mistakes, setMistakes] = useState(0);
   const [correctAnswers, setCorrectAnswers] = useState(0);
 
+  // Get the specific bölüm and level from route params, or use current from profile
+  const targetLevel = route?.params?.level || userProfile?.current_level || 1;
+  const targetBolum = route?.params?.bolum || userProfile?.current_bolum || 1;
+
   useEffect(() => {
     loadQuestions();
-  }, []);
+  }, [targetLevel, targetBolum]);
 
   const loadQuestions = async () => {
     try {
       setLoading(true);
       const currentKidem = userProfile?.current_kidem || 1;
-      const currentLevel = userProfile?.current_level || 1;
-      const currentBolum = userProfile?.current_bolum || 1;
 
-      console.log('Loading questions for:', { currentKidem, currentLevel, currentBolum });
+      console.log('Loading questions for:', { currentKidem, targetLevel, targetBolum });
 
       const questionsData = await DatabaseService.getQuestions(
         'TYT', // Default to TYT for now
         null, // No specific division
         currentKidem,
-        currentLevel,
-        currentBolum
+        targetLevel,
+        targetBolum
       );
 
       if (questionsData && questionsData.length > 0) {
@@ -150,10 +152,10 @@ export default function QuestionScreen({ navigation }) {
       const currentLevel = userProfile?.current_level || 1;
       const currentBolum = userProfile?.current_bolum || 1;
 
-      // Calculate new progress
+      // Calculate new progress - advance from the completed bölüm
       let newKidem = currentKidem;
       let newLevel = currentLevel;
-      let newBolum = currentBolum + 1;
+      let newBolum = targetBolum + 1; // Advance from the bölüm that was just completed
 
       // Check if we need to advance to next level (12 bölüms per level)
       if (newBolum > 12) {
@@ -202,7 +204,7 @@ export default function QuestionScreen({ navigation }) {
         try {
           await DatabaseService.createUserAchievement(userProfile.id, {
             achievement_type: 'bolum_completed',
-            achievement_name: `Bölüm ${currentBolum} Tamamlandı`,
+            achievement_name: `Bölüm ${targetBolum} Tamamlandı`,
             points_earned: correctAnswers * 10,
           });
         } catch (achievementError) {
